@@ -1,0 +1,66 @@
+import numpy as np
+import csv
+
+url = 'drive/MyDrive/data_training/robot_2dof/robot_2dof.csv'
+step = np.pi/200
+l1 = 50
+l2 = 40
+arr_1 = np.arange(step,2*np.pi,step)
+arr_2 = np.arange(step,np.pi,step)
+theta = np.array([[0,0]])
+p = np.array([[90,0]])
+header = ['Position_x','Position_y','Theta_1','Theta_2']
+with open(url,'w') as file:
+  writer = csv.writer(file)
+  writer.writerow(header);
+  for i in arr_1:
+    for j in arr_2:
+      theta = np.concatenate((theta,[[i,j]]),axis=0)
+      px = l1*np.cos(i)+l2*np.cos(i+j)
+      py = l1*np.sin(i)+l2*np.sin(i+j)
+      p = np.concatenate((p,[[px,py]]),axis=0)
+      data = [px,py,i,j]
+      writer.writerow(data)
+file.close()
+p = (p+90)/180
+theta[0:,0] /= 2*np.pi
+theta[0:,1] /= np.pi
+import keras
+from keras.models import Sequential
+from keras.layers import Dense
+from tensorflow.keras.optimizers import RMSprop,Adam
+from keras.callbacks import EarlyStopping
+import matplotlib.pyplot as plt 
+import pandas as pd 
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import scale,StandardScaler
+
+x_train,x_test,y_train,y_test = train_test_split(p,theta,test_size=0.2)
+model = Sequential()
+model.add(Dense(100,kernel_initializer='normal',activation='relu',input_shape=(2,)))
+model.add(Dense(50,activation='relu'))
+model.add(Dense(80,activation='relu'))
+model.add(Dense(30,activation='relu'))
+model.add(Dense(10,activation='relu'))
+model.add(Dense(2))
+model.summary()
+model.compile(loss='mse',optimizer=RMSprop(),metrics=['accuracy'])
+history = model.fit(x_train,y_train,batch_size=16,epochs=50,verbose=1,validation_split=0.2)
+score = model.evaluate(x_test,y_test,verbose=0)
+print("Error: ",score[0])
+print("Accuracy: ",score[1])
+pd.DataFrame(history.history).plot(figsize=(8,5))
+plt.grid(True)
+plt.show()
+print('\n')
+plt.plot(history.history['accuracy'])
+plt.plot(history.history['val_accuracy'])
+plt.title('Model accuracy')
+plt.ylabel('Accuracy')
+plt.xlabel('Epoch')
+plt.legend(['Train','Validation'],loc='upper_left')
+plt.show()
+model_json = model.to_json()
+with open('drive/MyDrive/data_training/robot_2dof/robot_2dof_config.json','w') as file_json:
+  file_json.write(model_json)
+model.save_weights('drive/MyDrive/data_training/robot_2dof/robot_2dof_weights.h5')
